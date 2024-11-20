@@ -1,5 +1,6 @@
 import re
 import constraint
+from constraint import Problem
 
 def read_dataset(file_path):
     with open(file_path, 'r') as file:
@@ -96,3 +97,69 @@ def read_dataset(file_path):
 file_path = 'P01_DATASET_8.TXT'
 dataset = read_dataset(file_path)
 
+# Inicializar o problema
+problem = Problem()
+
+# Obter informações gerais
+horizon = dataset["general_info"]["horizon"]
+
+# Criar variáveis para cada tarefa (domínio = intervalo de início no horizonte)
+for job in dataset["durations_resources"]:
+    jobnr = job["jobnr"]
+    problem.addVariable(jobnr, range(horizon))  # Domínio de possíveis tempos de início
+
+# Restrições de precedência
+for relation in dataset["precedence_relations"]:
+    job = relation["jobnr"]
+    successors = relation["successors"]
+    duration = next(j["duration"] for j in dataset["durations_resources"] if j["jobnr"] == job)
+
+    for successor in successors:
+        problem.addConstraint(lambda j_start, s_start, d=duration: s_start >= j_start + d, [job, successor])
+
+# Restrições de recursos (renováveis)
+resource_limits = dataset["resource_availability"]
+
+# Função para verificar o uso de recursos em um instante
+def resource_constraint(*args):
+    resource_usage = [0] * horizon
+    for idx, start_time in enumerate(args):
+        job = dataset["durations_resources"][idx]
+        duration = job["duration"]
+        resources = job["resources"]
+
+        for t in range(start_time, start_time + duration):
+            if t < horizon:
+                resource_usage[t] += sum(resources)
+
+    # Verificar se algum instante excede os limites
+    for t in range(horizon):
+        if resource_usage[t] > resource_limits["R1"]:  # Exemplo: verificar recurso renovável R1
+            return False
+    return True
+
+# Adicionar a restrição de recursos
+problem.addConstraint(resource_constraint, [job["jobnr"] for job in dataset["durations_resources"]])
+
+# Restrições de duração (limitar ao horizonte)
+for job in dataset["durations_resources"]:
+    jobnr = job["jobnr"]
+    duration = job["duration"]
+    problem.addConstraint(lambda start, d=duration: start + d <= horizon, [jobnr])
+
+# Resolver o problema
+solution = problem.getSolution()
+
+# Exibir a solução
+if solution:
+    # Organiza as tarefas pelo tempo de início (os valores de 'solution' são os tempos de início)
+    sorted_tasks = sorted(solution.items(), key=lambda x: x[1])  # Ordena pelo tempo de início
+
+    print("\nSolução organizada (por tempo de início):")
+    for task, start_time in sorted_tasks:
+        # Calcula o tempo de término com base na duração da tarefa
+        duration = next(d["duration"] for d in dataset["durations_resources"] if d["jobnr"] == task)
+        end_time = start_time + duration
+        print(f"Tarefa {task}: começa em {start_time}, termina em {end_time}")
+else:
+    print("Nenhuma solução viável encontrada.")
