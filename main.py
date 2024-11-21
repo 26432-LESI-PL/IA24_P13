@@ -37,11 +37,11 @@ def read_dataset(file_path):
             section = "resource_availability"
         elif section == "general_info":
             if "projects" in line:
-                data["general_info"]["projects"] = int(re.search(r'projects:\s+(\d+)', line).group(1))
+                data["general_info"]["projects"] = int(re.search(r'projects\s*:\s*(\d+)', line).group(1))
             elif "jobs" in line:
                 data["general_info"]["jobs"] = int(re.search(r'jobs \(incl\. supersource/sink \):\s+(\d+)', line).group(1))
             elif "horizon" in line:
-                data["general_info"]["horizon"] = int(re.search(r'horizon:\s+(\d+)', line).group(1))
+                data["general_info"]["horizon"] = int(re.search(r'horizon\s*:\s*(\d+)', line).group(1))
             elif "nonrenewable" in line:
                 data["general_info"]["nonrenewable_resources"] = int(re.search(r'nonrenewable\s+:\s+(\d+)', line).group(1))            
             elif "renewable" in line:
@@ -99,14 +99,13 @@ dataset = read_dataset(file_path)
 
 # Inicializar o problema
 problem = Problem()
+# Obter a data de vencimento (due_date) do primeiro projeto
+due_date = dataset["projects_summary"][0]["due_date"]
 
-# Obter informações gerais
-horizon = dataset["general_info"]["horizon"]
-
-# Criar variáveis para cada tarefa (domínio = intervalo de início no horizonte)
+# Criar variáveis para cada tarefa (domínio = intervalo de início até o due_date)
 for job in dataset["durations_resources"]:
     jobnr = job["jobnr"]
-    problem.addVariable(jobnr, range(horizon))  # Domínio de possíveis tempos de início
+    problem.addVariable(jobnr, range(due_date + 1))  # Domínio vai até due_date, inclusive
 
 # Restrições de precedência
 for relation in dataset["precedence_relations"]:
@@ -122,42 +121,44 @@ resource_limits = dataset["resource_availability"]
 
 # Função para verificar o uso de recursos em um instante
 def resource_constraint(*args):
-    resource_usage = [0] * horizon
+    resource_usage = {resource: [0] * (due_date + 1) for resource in resource_limits}
     for idx, start_time in enumerate(args):
         job = dataset["durations_resources"][idx]
         duration = job["duration"]
         resources = job["resources"]
 
         for t in range(start_time, start_time + duration):
-            if t < horizon:
-                resource_usage[t] += sum(resources)
-
-    # Verificar se algum instante excede os limites
-    for t in range(horizon):
-        if resource_usage[t] > resource_limits["R1"]:  # Exemplo: verificar recurso renovável R1
-            return False
+            if t <= due_date:  # Verificar apenas até o due_date
+                for r_idx, qty in enumerate(resources):
+                    resource = f'R{r_idx + 1}'
+                    resource_usage[resource][t] += qty
+                    if resource_usage[resource][t] > resource_limits[resource]:
+                        return False
     return True
 
-# Adicionar a restrição de recursos
+# Adicionar restrição de recursos
 problem.addConstraint(resource_constraint, [job["jobnr"] for job in dataset["durations_resources"]])
 
-# Restrições de duração (limitar ao horizonte)
+# Restrições de duração (limitar ao due_date)
 for job in dataset["durations_resources"]:
     jobnr = job["jobnr"]
     duration = job["duration"]
-    problem.addConstraint(lambda start, d=duration: start + d <= horizon, [jobnr])
+    problem.addConstraint(lambda start, d=duration: start + d <= due_date, [jobnr])
 
 # Resolver o problema
 solution = problem.getSolution()
 
-# Exibir a solução
+# Calcular o makespan
+tasks = dataset["durations_resources"]
+makespan = max(solution[task["jobnr"]] + task["duration"] for task in tasks)
+print(f"\nMakespan: {makespan}")
+
+# Exibir a solução organizada
 if solution:
-    # Organiza as tarefas pelo tempo de início (os valores de 'solution' são os tempos de início)
     sorted_tasks = sorted(solution.items(), key=lambda x: x[1])  # Ordena pelo tempo de início
 
-    print("\nSolução organizada (por tempo de início):")
+    print("Solução organizada (por tempo de início):")
     for task, start_time in sorted_tasks:
-        # Calcula o tempo de término com base na duração da tarefa
         duration = next(d["duration"] for d in dataset["durations_resources"] if d["jobnr"] == task)
         end_time = start_time + duration
         print(f"Tarefa {task}: começa em {start_time}, termina em {end_time}")
