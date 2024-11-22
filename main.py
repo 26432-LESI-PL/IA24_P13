@@ -1,5 +1,4 @@
 import re
-import constraint
 from constraint import Problem
 
 def read_dataset(file_path):
@@ -14,6 +13,8 @@ def read_dataset(file_path):
         "resource_availability": {}
     }
 
+    # Skip line é para passar a linha do Projects summary à frente pois tem um header
+    # e o programa não consegue identificar o header como uma linha de dados
     skip_line = False
     section = None
     for line in lines:
@@ -94,7 +95,7 @@ def read_dataset(file_path):
 
     return data
 
-file_path = 'P01_DATASET_8.TXT'
+file_path = 'P01_DATASET_30.TXT'
 dataset = read_dataset(file_path)
 
 # Inicializar o problema
