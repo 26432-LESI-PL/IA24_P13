@@ -54,10 +54,12 @@ def read_dataset(file_path):
                 parts = line.split()
                 jobnr = int(parts[0])
                 modes = int(parts[1])
+                successors_count = int(parts[2])
                 successors = list(map(int, parts[3:]))
                 dataset["precedence_relations"].append({
                     "jobnr": jobnr,
                     "modes": modes,
+                    "successors_count": successors_count,
                     "successors": successors
                 })
         

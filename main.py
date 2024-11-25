@@ -95,7 +95,7 @@ def read_dataset(file_path):
 
     return data
 
-file_path = 'P01_DATASET_30.TXT'
+file_path = 'P01_DATASET_10.TXT'
 dataset = read_dataset(file_path)
 
 # Inicializar o problema
@@ -147,11 +147,15 @@ for job in dataset["durations_resources"]:
     problem.addConstraint(lambda start, d=duration: start + d <= due_date, [jobnr])
 
 # Resolver o problema
+print("Solving the problem...")
 solution = problem.getSolution()
+print("Solution found.")
 
 # Calcular o makespan
 tasks = dataset["durations_resources"]
-makespan = max(solution[task["jobnr"]] + task["duration"] for task in tasks)
+start_times = [solution[task["jobnr"]] for task in tasks]
+end_times = [solution[task["jobnr"]] + task["duration"] for task in tasks]
+makespan = max(end_times) - min(start_times)
 print(f"\nMakespan: {makespan}")
 
 # Exibir a solução organizada
